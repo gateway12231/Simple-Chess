@@ -61,6 +61,18 @@ public class GamePiece {
         }
     }
 
+    public boolean isMoveValid (int letter, int number) {
+        Position temp = top;
+        while (temp != null) {
+            if (temp.letter == letter && temp.number == number) {
+                return true;
+            }
+            temp = temp.next;
+        }
+
+        return false;
+    }
+
     public void clearMoves () {
         top = null;
     }
@@ -96,6 +108,14 @@ public class GamePiece {
 
     public boolean hasMoved () {
         return hasMovedStatus;
+    }
+
+    public boolean equals (GamePiece right) {
+        if (this.owner.equals(right.getOwner()) && this.type.equals(right.getType()) && this.position.letter == right.getPositionLetter() && this.position.number == right.getPositionNumber()) {
+            return true;
+        }
+
+        return false;
     }
 
     public String positionToString () {
