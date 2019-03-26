@@ -15,21 +15,20 @@ public class Board {
         initializePlaySpace();
         // This was used to test move generation
         /*playSpace = new GamePiece[][]
-                       {{null, null, null, null, null, null, null, null},
+                       {{null, null, new GamePiece(whitePlayer, "pawn", 0, 2), new GamePiece(blackPlayer, "pawn", 0, 4), null, null, null, new GamePiece(whitePlayer, "king", 0, 7)},
+                        {null, null, null, null, null, null, new GamePiece(blackPlayer, "rook", 1, 6), null},
+                        {null, null, null, null, null, null, new GamePiece(blackPlayer, "rook", 2, 6), null},
                         {null, null, null, null, null, null, null, null},
-                        {null, null, null, new GamePiece(whitePlayer, "queen", 2, 3), null, null, null, null},
                         {null, null, null, null, null, null, null, null},
-                        {null, new GamePiece(blackPlayer, "rook", 4, 1), null, null, null, null, null, null},
-                        {null, null, null, new GamePiece(blackPlayer, "king", 5, 3), null, null, null, null},
                         {null, null, null, null, null, null, null, null},
-                        {null, null, null, null, null, null, null, null}};*/
+                        {null, null, null, null, null, null, null, null},
+                        {new GamePiece(blackPlayer, "king", 7, 0), null, null, null, null, null, null, null}};*/
     }
 
     public void testingMethod () {
-        System.out.println(playSpace[5][1].getType());
-        /*GamePiece piece = playSpace[5][3];
+        GamePiece piece = playSpace[0][7];
         generateMoves(piece);
-        System.out.println(piece.allMovesToString());*/
+        System.out.println(piece.allMovesToString());
     }
 
     private void initializePlaySpace () { // This "places" all the pieces on the board
@@ -83,13 +82,62 @@ public class Board {
         }
     }
 
+    // This checks if there is a checkmate or a stalemate and sets static variables within GameController accordingly
+    public void checkGameState (Player currentPlayer) {
+        // This is the part for checkmate
+        if (currentPlayer.equals(whitePlayer) && isInCheckmate(findPiece(blackPlayer, "king")[0])) {
+            // Stops the play loop
+            GameController.play = false;
+            // Sets the winner
+            GameController.winner = whitePlayer;
+        }
+
+        if (currentPlayer.equals(blackPlayer) && isInCheckmate(findPiece(whitePlayer, "king")[0])) {
+            GameController.play = false;
+            GameController.winner = blackPlayer;
+        }
+
+        // This is the part for stalemate
+        if (isInStalemate(whitePlayer) || isInStalemate(blackPlayer)) {
+            GameController.play = false;
+            GameController.stalemate = true;
+        }
+    }
+
     // Returns true if there is a checkmate on the provided piece
-    public boolean isInCheckMate (GamePiece king) {
+    private boolean isInCheckmate (GamePiece king) {
         // Avoid 0 0 combination. Possible combinations {1 -1, 1 0, 1 1, 0 -1, **0 0**, 0 1, -1 -1, -1 0, -1 1} **SKIP THIS ONE
         for (int i = -1; i < 2; i += 1) {
             for (int j = -1; j < 2; j += 1) {
-                if (kingChecker(makeGhostPlaySpace(king, king.getPositionLetter() + i, king.getPositionNumber() + j), new GamePiece(king.getOwner(), "king", king.getPositionLetter() + i, king.getPositionNumber() + j))) {
-                    return false;
+                if (inBounds(king.getPositionLetter() + i) && inBounds(king.getPositionNumber() + j)) {
+                    if (kingChecker(makeGhostPlaySpace(king, king.getPositionLetter() + i, king.getPositionNumber() + j), new GamePiece(king.getOwner(), "king", king.getPositionLetter() + i, king.getPositionNumber() + j))) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // Stalemate happens when no moves can be made
+    // This method returns false at the first instance of a possible move
+    private boolean isInStalemate (Player player) {
+        GamePiece probe;
+
+        for (int i = 0; i < 8; i += 1) {
+            for (int j = 0; j < 8; j += 1) {
+                probe = playSpace[i][j];
+                // This checks if there is a GamePiece where the probe is
+                if (probe != null) {
+                    // This checks if the owner of the probed GamePiece is the same as <player>
+                    if (probe.getOwner().equals(player)) {
+                        generateMoves(probe);
+                        // This checks if any moves were generated
+                        if (!probe.isEmpty()) {
+                            return false;
+                        }
+                    }
                 }
             }
         }
@@ -129,7 +177,18 @@ public class Board {
                 generateMoves(movingPiece);
                 // Now the move can finally be made
                 if (movingPiece.isMoveValid(endLetter, endNumber)) {
+                    // Updates if the piece in question has moved
+                    if (!movingPiece.hasMoved()) {
+                        movingPiece.moved();
+                    }
+
+                    // Functionality for capturing a piece. The piece is stored in the Player instance of the opponent
+                    if (playSpace[endLetter][endNumber] != null) {
+                        movingPiece.getOwner().addCapturedPiece(playSpace[endLetter][endNumber]);
+                    }
+
                     playSpace[endLetter][endNumber] = movingPiece;
+                    movingPiece.changePosition(endLetter, endNumber);
                     playSpace[startLetter][startNumber] = null;
                     return;
                 }
@@ -194,13 +253,13 @@ public class Board {
             }
 
             // Possible idea to simplify the following if statements
-            for (int i = number - 1; i < 2; i += 2) {
-                probe = playSpace[letter + 1][i];
-                if (inBounds(letter + 1) && inBounds(i)) {
+            for (int i = letter - 1; i < letter + 3; i += 2) {
+                if (inBounds(i) && inBounds(number + 1)) {
+                    probe = playSpace[i][number + 1];
                     if (probe != null) {
-                        if (probe.getType().equals("pawn") && !probe.getColor().equals(piece.getColor())) {
-                            if (kingChecker(piece, letter + 1, i)) {
-                                piece.addMove(letter + 1, i);
+                        if (!probe.getType().equals("king") && !probe.getColor().equals(piece.getColor())) {
+                            if (kingChecker(piece, i, number + 1)) {
+                                piece.addMove(i, number + 1);
                             }
                         }
                     }
@@ -237,13 +296,14 @@ public class Board {
                 }
             }
 
-            for (int i = number - 1; i < 2; i += 2) {
-                probe = playSpace[letter - 1][i];
-                if (inBounds(letter - 1) && inBounds(i)) {
+            for (int i = letter - 1; i < letter + 3; i += 2) {
+                if (inBounds(i) && inBounds(number - 1)) {
+                    probe = playSpace[i][number - 1];
+
                     if (probe != null) {
-                        if (probe.getType().equals("pawn") && !probe.getColor().equals(piece.getColor())) {
-                            if (kingChecker(piece, letter - 1, i)) {
-                                piece.addMove(letter - 1, i);
+                        if (!probe.getType().equals("king") && !probe.getColor().equals(piece.getColor())) {
+                            if (kingChecker(piece, i, number - 1)) {
+                                piece.addMove(i, number - 1);
                             }
                         }
                     }
@@ -274,7 +334,7 @@ public class Board {
         // The for loops make sure the move is in bounds as a result of how they are setup
         for (int i = letter + 1; i < 8; i += 1) {
             if (playSpace[i][number] != null) {
-                if (!playSpace[i][number].getColor().equals(piece.getColor())) {
+                if (!playSpace[i][number].getType().equals("king") && !playSpace[i][number].getColor().equals(piece.getColor())) {
                     if (kingChecker(piece, i, number)) {
                         piece.addMove(i, number);
                     }
@@ -291,7 +351,7 @@ public class Board {
 
         for (int i = letter - 1; i > -1; i -= 1) {
             if (playSpace[i][number] != null) {
-                if (!playSpace[i][number].getColor().equals(piece.getColor())) {
+                if (!playSpace[i][number].getType().equals("king") && !playSpace[i][number].getColor().equals(piece.getColor())) {
                     if (kingChecker(piece, i, number)) {
                         piece.addMove(i, number);
                     }
@@ -308,7 +368,7 @@ public class Board {
 
         for (int i = number + 1; i < 8; i += 1) {
             if (playSpace[letter][i] != null) {
-                if (!playSpace[letter][i].getColor().equals(piece.getColor())) {
+                if (!playSpace[letter][i].getType().equals("king") && !playSpace[letter][i].getColor().equals(piece.getColor())) {
                     if (kingChecker(piece, letter, i)) {
                         piece.addMove(letter, i);
                     }
@@ -325,7 +385,7 @@ public class Board {
 
         for (int i = number - 1; i > -1; i -= 1) {
             if (playSpace[letter][i] != null) {
-                if (!playSpace[letter][i].getColor().equals(piece.getColor())) {
+                if (!playSpace[letter][i].getType().equals("king") && !playSpace[letter][i].getColor().equals(piece.getColor())) {
                     if (kingChecker(piece, letter, i)) {
                         piece.addMove(letter, i);
                     }
@@ -350,7 +410,7 @@ public class Board {
             for (int j = number - 1; j < number + 2; j += 2) {
                 if (inBounds(i) && inBounds(j)) {
                     if (playSpace[i][j] != null) {
-                        if (!playSpace[i][j].getColor().equals(piece.getColor())) {
+                        if (!playSpace[i][j].getType().equals("king") && !playSpace[i][j].getColor().equals(piece.getColor())) {
                             if (kingChecker(piece, i, j)) {
                                 piece.addMove(i, j);
                             }
@@ -369,7 +429,7 @@ public class Board {
             for (int j = number - 2; j < number + 3; j += 4) {
                 if (inBounds(i) && inBounds(j)) {
                     if (playSpace[i][j] != null) {
-                        if (!playSpace[i][j].getColor().equals(piece.getColor())) {
+                        if (!playSpace[i][j].getType().equals("king") && !playSpace[i][j].getColor().equals(piece.getColor())) {
                             if (kingChecker(piece, i, j)) {
                                 piece.addMove(i, j);
                             }
@@ -394,7 +454,7 @@ public class Board {
         for (int i = letter + 1, j = 1; i < 8; i += 1, j += 1) {
             if (inBounds(i) && inBounds(number + j)) {
                 if (playSpace[i][number + j] != null) {
-                    if (!playSpace[i][number + j].getColor().equals(piece.getColor())) {
+                    if (!playSpace[i][number + j].getType().equals("king") && !playSpace[i][number + j].getColor().equals(piece.getColor())) {
                         if (kingChecker(piece, i, number + j)) {
                             piece.addMove(i, number + j);
                         }
@@ -413,7 +473,7 @@ public class Board {
         for (int i = letter + 1, j = 1; i < 8; i += 1, j += 1) {
             if (inBounds(i) && inBounds(number - j)) {
                 if (playSpace[i][number - j] != null) {
-                    if (!playSpace[i][number - j].getColor().equals(piece.getColor())) {
+                    if (!playSpace[i][number - j].getType().equals("king") && !playSpace[i][number - j].getColor().equals(piece.getColor())) {
                         if (kingChecker(piece, i, number - j)) {
                             piece.addMove(i, number - j);
                         }
@@ -432,7 +492,7 @@ public class Board {
         for (int i = letter - 1, j = 1; i > -1; i -= 1, j += 1) {
             if (inBounds(i) && inBounds(number + j)) {
                 if (playSpace[i][number + j] != null) {
-                    if (!playSpace[i][number + j].getColor().equals(piece.getColor())) {
+                    if (!playSpace[i][number + j].getType().equals("king") && !playSpace[i][number + j].getColor().equals(piece.getColor())) {
                         if (kingChecker(piece, i, number + j)) {
                             piece.addMove(i, number + j);
                         }
@@ -451,7 +511,7 @@ public class Board {
         for (int i = letter - 1, j = 1; i > -1; i -= 1, j += 1) {
             if (inBounds(i) && inBounds(number - j)) {
                 if (playSpace[i][number - j] != null) {
-                    if (!playSpace[i][number - j].getColor().equals(piece.getColor())) {
+                    if (!playSpace[i][number - j].getType().equals("king") && !playSpace[i][number - j].getColor().equals(piece.getColor())) {
                         if (kingChecker(piece, i, number - j)) {
                             piece.addMove(i, number - j);
                         }
@@ -479,15 +539,15 @@ public class Board {
             for (int j = -1; j < 2; j += 1) {
                 if (i != 0 || j != 0) { // This skips the spot the king occupies
                     ghostPiece = new GamePiece(piece.getOwner(), "king", letter + i, number + j);
-
-                    if (playSpace[letter + i][number + j] != null) {
-                        if (kingChecker(makeGhostPlaySpace(piece, letter + i, number + j), ghostPiece) && !playSpace[letter + i][number + j].getColor().equals(piece.getColor())) {
-                            piece.addMove(letter + i, number + j);
-                        }
-                    }
-                    else {
-                        if (kingChecker(makeGhostPlaySpace(piece, letter + i, number + j), ghostPiece)) {
-                            piece.addMove(letter + i, number + j);
+                    if (inBounds(letter + i) && inBounds(number + j)) {
+                        if (playSpace[letter + i][number + j] != null) {
+                            if (!playSpace[letter + i][number + j].getType().equals("king") && kingChecker(makeGhostPlaySpace(piece, letter + i, number + j), ghostPiece) && !playSpace[letter + i][number + j].getColor().equals(piece.getColor())) {
+                                piece.addMove(letter + i, number + j);
+                            }
+                        } else {
+                            if (kingChecker(makeGhostPlaySpace(piece, letter + i, number + j), ghostPiece)) {
+                                piece.addMove(letter + i, number + j);
+                            }
                         }
                     }
                 }
@@ -658,7 +718,7 @@ public class Board {
 
         // Lastly is the pawn check. This one is just raw
         if (ghostPiece.getColor().equals("white")) {
-            for (int i = letter - 1; i < 2; i += 2) {
+            for (int i = letter - 1; i < letter + 3; i += 2) {
                 if (inBounds(i) && inBounds(number + 1)) {
                     probe = ghostPlaySpace[i][number + 1];
                     if (probe != null) {
@@ -670,7 +730,7 @@ public class Board {
             }
         }
         else {
-            for (int i = letter - 1; i < 2; i += 2) {
+            for (int i = letter - 1; i < letter + 3; i += 2) {
                 if (inBounds(i) && inBounds(number - 1)) {
                     probe = ghostPlaySpace[i][number - 1];
                     if (probe != null) {
@@ -682,6 +742,7 @@ public class Board {
             }
         }
 
+        // If the method makes it here this means that the king is okay
         return true;
     }
 
@@ -749,10 +810,12 @@ public class Board {
                 }
                 else if (playSpace[i][j] != null) {
                     if (j != 7) {
-                        result.append(playSpace[i][j].positionToString()).append(" ").append(playSpace[i][j].getType()).append(" | ");
+                        result.append(playSpace[i][j].positionToString()).append(" ")
+                                .append(playSpace[i][j].getType()).append(" ").append(playSpace[i][j].colorToChar()).append(" | ");
                     }
                     else {
-                        result.append(playSpace[i][j].positionToString()).append(" ").append(playSpace[i][j].getType()).append(" | ").append(letters[i]);
+                        result.append(playSpace[i][j].positionToString()).append(" ")
+                                .append(playSpace[i][j].getType()).append(" ").append(playSpace[i][j].colorToChar()).append(" | ").append(letters[i]);
                     }
                 }
                 else {

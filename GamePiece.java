@@ -19,7 +19,6 @@ public class GamePiece {
 
     private Player owner;
     private String type;
-    private boolean captured = false;
     private boolean hasMovedStatus;
     private Position position;
     private Position top; // The first possible move
@@ -27,7 +26,6 @@ public class GamePiece {
     public GamePiece (Player owner, String type, int letter, int number) {
         this.owner = owner;
         this.type = type;
-        captured = false;
         hasMovedStatus = false;
         top = null;
         position = new Position(letter, number);
@@ -52,6 +50,11 @@ public class GamePiece {
             }
         }
     }*/
+
+    public void changePosition (int letter, int number) {
+        position.number = number;
+        position.letter = letter;
+    }
 
     public void addMove (int letter, int number) { // Checks if given move is in the bounds of the board and then adds it
         if (isEmpty()) {
@@ -102,12 +105,18 @@ public class GamePiece {
         return owner;
     }
 
-    private boolean isEmpty () {
+    public boolean isEmpty () {
         return top == null;
     }
 
+    // Returns true if the piece has moved and false if not
     public boolean hasMoved () {
         return hasMovedStatus;
+    }
+
+    // This says the piece has moved
+    public void moved () {
+        hasMovedStatus = true;
     }
 
     public boolean equals (GamePiece right) {
@@ -116,6 +125,15 @@ public class GamePiece {
         }
 
         return false;
+    }
+
+    public char colorToChar () {
+        if (getColor().equals("white")) {
+            return 'W';
+        }
+        else {
+            return 'B';
+        }
     }
 
     public String positionToString () {
