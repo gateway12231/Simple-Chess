@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SimpleChess</string>
+    <string name="title">Simple Chess</string>
+    <string name="player">Player Name</string>
+    <string name="default_player_name">James</string>
+    <string name="default_player_name_2">Nicholas</string>
+    <string name="player_screen_button">Start</string>
+    <string name="offBoardWarning">That move is off the board</string>
+</resources>
